@@ -15,7 +15,10 @@ if script_dir:
 
 Handler = http.server.SimpleHTTPRequestHandler
 
-with socketserver.TCServer(("", PORT), Handler) as httpd:
+# --- AQUÍ ESTÁ LA CORRECCIÓN ---
+# Debe ser TCPServer (con S mayúscula), no TCServer
+with socketserver.TCPServer(("", PORT), Handler) as httpd:
+# ---------------------------------
     print(f"======================================================")
     print(f"  S E R V I D O R   P Y T H O N   A C T I V O")
     print(f"======================================================")
