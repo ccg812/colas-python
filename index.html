@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Colas [v2.0]</title>
+    
+    <style>
+        :root {
+            --color-bg: #0d021a;        /* Morado muy oscuro */
+            --color-primary: #f000c0;   /* Magenta/Rosa brillante */
+            --color-secondary: #00ffff; /* Cian */
+            --color-error: #ff3d3d;     /* Rojo neón */
+            --color-text: #e0e0e0;
+            --color-text-dark: #333;
+            --color-success: #00ff00;   /* Verde neón para logs */
+            --font-main: 'Courier New', Courier, monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            font-family: var(--font-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        h1, h2 {
+            color: var(--color-secondary);
+            text-shadow: 0 0 5px var(--color-secondary);
+            font-weight: 700;
+            letter-spacing: 2px;
+        }
+        
+        h2 {
+            font-size: 1.1em;
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--color-primary);
+            padding-bottom: 5px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1100px;
+            border: 2px solid var(--color-primary);
+            background-color: #1a0933;
+            box-shadow: 0 0 25px var(--color-primary);
+            padding: 20px;
+            border-radius: 15px;
+        }
+
+        /* --- Pantalla de Menú --- */
+        #menu-screen {
+            text-align: center;
+        }
+        
+        #menu-screen h1 {
+            color: var(--color-primary);
+            text-shadow: 0 0 8px var(--color-primary);
+            font-size: 2.5em;
+            margin-bottom: 30px;
+        }
+
+        #menu-screen .input-group {
+            margin: 20px auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            max-width: 400px;
+        }
+        
+        #menu-screen .button-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+            max-width: 500px;
+            margin: 30px auto;
+        }
+
+        /* --- Pantalla del Simulador --- */
+        #simulator-screen {
+            display: none; /* Oculto por defecto */
+        }
+
+        #simulator-title {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+            color: var(--color-primary);
+        }
+
+        /* Layout principal del simulador (como en la imagen) */
+        .layout-grid {
+            display: grid;
+            grid-template-areas:
+                "main-area sidebar-top"
+                "main-area sidebar-bottom";
+            grid-template-columns: 2fr 1.2fr;
+            grid-template-rows: 1fr auto;
+            gap: 20px;
+        }
+        
+        .panel {
+            background-color: rgba(0,0,0,0.2);
+            border: 1px solid var(--color-primary);
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .panel-main { 
+            grid-area: main-area; 
+            display: flex;
+            flex-direction: column;
+        }
+        .panel-consola { 
+            grid-area: sidebar-top;
+            height: 350px; /* Altura fija para la consola */
+        }
+        .panel-monitor { 
+            grid-area: sidebar-bottom;
+        }
+
+        /* --- Visualizador (Izquierda) --- */
+        #visualizer-box {
+            font-size: 1.2em;
+            white-space: pre; /* Respeta los espacios en blanco */
+            overflow-x: auto;
+            padding: 15px;
+            background: #000;
+            border: 1px dashed var(--color-secondary);
+            border-radius: 5px;
+            min-height: 200px;
+            flex-grow: 1; /* Ocupa el espacio disponible */
+            margin-bottom: 20px;
+        }
+        
+        #visualizer-box .ptr { color: var(--color-secondary); font-weight: bold; }
+        #visualizer-box .empty { color: #555; }
+        #visualizer-box .item { color: var(--color-primary); font-weight: bold; }
+        #visualizer-box .heap-item { color: var(--color-text); }
+        #visualizer-box .heap-prio { color: var(--color-secondary); }
+
+        /* --- Controles (Izquierda, abajo) --- */
+        .main-controls {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+
+        .main-controls .input-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 10px;
+        }
+        
+        .main-controls .button-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        /* --- Mini Consola (Derecha, arriba) --- */
+        #console-box {
+            height: calc(100% - 45px); /* Resta el padding y el h2 */
+            background-color: #000;
+            border-radius: 5px;
+            padding: 10px;
+            overflow-y: auto;
+            font-size: 0.9em;
+        }
+        
+        .log-entry { margin-bottom: 5px; }
+        .log-error { color: var(--color-error); }
+        .log-success { color: var(--color-success); }
+        .log-op { color: var(--color-secondary); }
+
+        /* --- Monitor de Estado (Derecha, abajo) --- */
+        #monitor-text {
+            font-size: 0.9em;
+            color: var(--color-text);
+            margin-bottom: 20px;
+            min-height: 50px;
+        }
+        
+        .monitor-controls {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+
+
+        /* --- Controles Generales (Botones, Inputs) --- */
+        input[type="text"], input[type="number"] {
+            font-family: var(--font-main);
+            background-color: rgba(0,0,0,0.3);
+            color: var(--color-text);
+            border: none;
+            border-bottom: 2px solid var(--color-secondary);
+            padding: 12px;
+            font-size: 1em;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        
+        input:focus {
+            border-bottom-color: var(--color-primary);
+        }
+
+        button {
+            font-family: var(--font-main);
+            padding: 12px;
+            font-size: 1em;
+            font-weight: bold;
+            letter-spacing: 1px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 2px solid;
+        }
+        
+        /* Botón Primario (Como PUSH) */
+        button.btn-primary {
+            background-color: var(--color-primary);
+            border-color: var(--color-primary);
+            color: var(--color-text-dark);
+        }
+        button.btn-primary:hover {
+            background-color: transparent;
+            color: var(--color-primary);
+            box-shadow: 0 0 10px var(--color-primary);
+        }
+        
+        /* Botón Secundario (Como POP) */
+        button.btn-secondary {
+            background-color: transparent;
+            border-color: var(--color-primary);
+            color: var(--color-primary);
+        }
+        button.btn-secondary:hover {
+            background-color: var(--color-primary);
+            color: var(--color-text-dark);
+        }
+        
+        /* Botón Terciario (Como PEEK) */
+        button.btn-tertiary {
+            background-color: transparent;
+            border-color: var(--color-secondary);
+            color: var(--color-secondary);
+        }
+        button.btn-tertiary:hover {
+            background-color: var(--color-secondary);
+            color: var(--color-text-dark);
+        }
+        
+        /* Botón de Error/Volver */
+        button.btn-error {
+            background-color: transparent;
+            border-color: var(--color-error);
+            color: var(--color-error);
+        }
+        button.btn-error:hover {
+            background-color: var(--color-error);
+            color: var(--color-text);
+        }
+        
+        #priority-input { display: none; } /* Oculto por defecto */
+        
+        /* Ajustes para móviles */
+        @media (max-width: 800px) {
+            .layout-grid {
+                grid-template-areas:
+                    "main-area"
+                    "sidebar-top"
+                    "sidebar-bottom";
+                grid-template-columns: 1fr;
+            }
+            .panel-consola { height: 250px; }
+            .main-controls .button-row { grid-template-columns: 1fr; }
+        }
+        
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        
+        <div id="menu-screen">
+            <h1>SIMULADOR DE COLAS</h1>
+            <div class="input-group">
+                <input type="number" id="capacity-input" value="8" min="1" placeholder="Límite (Capacidad)">
+            </div>
+
+            <div class="button-grid">
+                <button id="start-simple" class="btn-primary">1. Cola Simple (Lineal)</button>
+                <button id="start-circular" class="btn-primary">2. Cola Circular</button>
+                <button id="start-priority" class="btn-primary">3. Cola de Prioridad</button>
+            </div>
+        </div>
+
+        <div id="simulator-screen">
+            <h1 id="simulator-title">> SIMULADOR: [TIPO]</h1>
+            
+            <div class="layout-grid">
+                
+                <div class="panel panel-main">
+                    <h2>> VISUALIZADOR (ITERADOR)</h2>
+                    <div id="visualizer-box">
+                        </div>
+                    
+                    <div class="main-controls">
+                        <div class="input-row">
+                             <input type="text" id="item-input" placeholder="Ingresar valor...">
+                             <button id="btn-enqueue" class="btn-primary">ENCOLAR</button>
+                        </div>
+                        <input type="number" id="priority-input" placeholder="Ingresar prioridad (solo Cola P.)">
+                        <div class="button-row">
+                            <button id="btn-dequeue" class="btn-secondary">DESENCOLAR</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel panel-consola">
+                    <h2>> CONSOLA DE OPERACIONES</h2>
+                    <div id="console-box">
+                        </div>
+                </div>
+
+                <div class="panel panel-monitor">
+                    <h2>> MONITOR DE ESTADO</h2>
+                    <p id="monitor-text">
+                        Controles del sistema. Ajuste la capacidad de la cola o vuelva al menú principal.
+                    </p>
+                    <div class="monitor-controls">
+                        <input type="number" id="new-capacity-input" placeholder="Nuevo Límite de Capacidad">
+                        <button id="btn-set-capacity" class="btn-tertiary">CAMBIAR LÍMITE</button>
+                        <button id="btn-back" class="btn-error">VOLVER AL MENÚ</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // --- Clases de Error Personalizadas ---
+        class QueueOverflowError extends Error {
+            constructor(message) {
+                super(message);
+                this.name = "QueueOverflowError";
+            }
+        }
+
+        class QueueUnderflowError extends Error {
+            constructor(message) {
+                super(message);
+                this.name = "QueueUnderflowError";
+            }
+        }
+
+        // --- 1. Cola Simple (Lineal) ---
+        class SimpleLinearQueue {
+            constructor(capacity) {
+                this.capacity = capacity;
+                this.queue = new Array(capacity).fill(null);
+                this.front = 0;
+                this.rear = 0;
+                this.size = 0;
+                this.type = "Cola Simple (Lineal)";
+            }
+
+            isFull() {
+                return this.rear === this.capacity;
+            }
+
+            isEmpty() {
+                return this.size === 0;
+            }
+
+            enqueue(item) {
+                if (this.isFull()) {
+                    throw new QueueOverflowError(`DESBORDAMIENTO: La cola lineal (cap=${this.capacity}) está llena.`);
+                }
+                this.queue[this.rear] = item;
+                this.rear++;
+                this.size++;
+            }
+
+            dequeue() {
+                if (this.isEmpty()) {
+                    throw new QueueUnderflowError("SUBDESBORDAMIENTO: La cola está vacía.");
+                }
+                const item = this.queue[this.front];
+                this.queue[this.front] = null;
+                this.front++;
+                this.size--;
+                return item;
+            }
+
+            setCapacity(newCapacity) {
+                if (newCapacity < this.size) {
+                    throw new Error(`Capacidad nueva (${newCapacity}) es menor que el tamaño actual (${this.size}).`);
+                }
+                const newQueue = new Array(newCapacity).fill(null);
+                const currentItems = this.queue.slice(this.front, this.rear);
+                
+                for (let i = 0; i < currentItems.length; i++) {
+                    newQueue[i] = currentItems[i];
+                }
+                
+                this.queue = newQueue;
+                this.capacity = newCapacity;
+                this.front = 0;
+                this.rear = this.size;
+            }
+
+            getVisualState() {
+                return {
+                    queue: this.queue,
+                    front: this.front,
+                    rear: this.rear,
+                    capacity: this.capacity,
+                    size: this.size,
+                    type: this.type
+                };
+            }
+        }
+
+        // --- 2. Cola Circular ---
+        class CircularQueue {
+            constructor(capacity) {
+                this.capacity = capacity;
+                this.queue = new Array(capacity).fill(null);
+                this.front = -1;
+                this.rear = -1;
+                this.size = 0;
+                this.type = "Cola Circular";
+            }
+
+            isFull() {
+                return this.size === this.capacity;
+            }
+
+            isEmpty() {
+                return this.size === 0;
+            }
+
+            enqueue(item) {
+                if (this.isFull()) {
+                    throw new QueueOverflowError(`DESBORDAMIENTO: La cola circular (cap=${this.capacity}) está llena.`);
+                }
+                if (this.isEmpty()) {
+                    this.front = 0;
+                }
+                this.rear = (this.rear + 1) % this.capacity;
+                this.queue[this.rear] = item;
+                this.size++;
+            }
+
+            dequeue() {
+                if (this.isEmpty()) {
+                    throw new QueueUnderflowError("SUBDESBORDAMIENTO: La cola está vacía.");
+                }
+                const item = this.queue[this.front];
+                this.queue[this.front] = null;
+                this.size--;
+
+                if (this.isEmpty()) {
+                    this.front = -1;
+                    this.rear = -1;
+                } else {
+                    this.front = (this.front + 1) % this.capacity;
+                }
+                return item;
+            }
+
+            setCapacity(newCapacity) {
+                if (newCapacity < this.size) {
+                    throw new Error(`Capacidad nueva (${newCapacity}) es menor que el tamaño actual (${this.size}).`);
+                }
+                const newQueue = new Array(newCapacity).fill(null);
+                for (let i = 0; i < this.size; i++) {
+                    const oldIndex = (this.front + i) % this.capacity;
+                    newQueue[i] = this.queue[oldIndex];
+                }
+                this.queue = newQueue;
+                this.capacity = newCapacity;
+                this.front = this.isEmpty() ? -1 : 0;
+                this.rear = this.isEmpty() ? -1 : this.size - 1;
+            }
+            
+            getVisualState() {
+                return {
+                    queue: this.queue,
+                    front: this.front,
+                    rear: this.rear,
+                    capacity: this.capacity,
+                    size: this.size,
+                    type: this.type
+                };
+            }
+        }
+
+        // --- 3. Cola de Prioridad ---
+        class PriorityQueue {
+            constructor(capacity) {
+                this.capacity = capacity;
+                this.heap = []; // Almacenará objetos {item, priority}
+                this.type = "Cola de Prioridad";
+            }
+
+            isFull() {
+                return this.heap.length === this.capacity;
+            }
+
+            isEmpty() {
+                return this.heap.length === 0;
+            }
+
+            enqueue(item, priority) {
+                if (this.isFull()) {
+                    throw new QueueOverflowError(`DESBORDAMIENTO: La cola de prioridad (cap=${this.capacity}) está llena.`);
+                }
+                if (isNaN(priority)) {
+                    throw new Error("Prioridad debe ser un número.");
+                }
+                
+                this.heap.push({ item, priority });
+                this.heap.sort((a, b) => a.priority - b.priority); // Min-Heap
+            }
+
+            dequeue() {
+                if (this.isEmpty()) {
+                    throw new QueueUnderflowError("SUBDESBORDAMIENTO: La cola está vacía.");
+                }
+                return this.heap.shift(); // Saca el de menor prioridad
+            }
+
+            setCapacity(newCapacity) {
+                if (newCapacity < this.heap.length) {
+                    throw new Error(`Capacidad nueva (${newCapacity}) es menor que el tamaño actual (${this.heap.length}).`);
+                }
+                this.capacity = newCapacity;
+            }
+            
+            getVisualState() {
+                let stateStr = `  Estado: ${this.heap.length}/${this.capacity}\n\n`;
+                stateStr += `  Representación (Min-Heap):\n`;
+                if (this.isEmpty()) {
+                    stateStr += "  [ VACÍO ]";
+                } else {
+                    this.heap.forEach(entry => {
+                        stateStr += `  [Prio: <span class="heap-prio">${entry.priority}</span>, Item: '<span class="heap-item">${entry.item}</span>']\n`;
+                    });
+                    stateStr += `\n  PRÓXIMO EN SALIR: '${this.heap[0].item}' (Prio: ${this.heap[0].priority})`;
+                }
+                
+                return {
+                    type: this.type,
+                    rawHTML: stateStr // Devolvemos HTML crudo
+                };
+            }
+        }
+
+
+        // --- LÓGICA DEL SIMULADOR (Controlador) ---
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            let currentQueue = null;
+
+            // Elementos DOM
+            const menuScreen = document.getElementById('menu-screen');
+            const simScreen = document.getElementById('simulator-screen');
+            const capacityInput = document.getElementById('capacity-input');
+            
+            const startSimpleBtn = document.getElementById('start-simple');
+            const startCircularBtn = document.getElementById('start-circular');
+            const startPriorityBtn = document.getElementById('start-priority');
+            
+            const simTitle = document.getElementById('simulator-title');
+            const visualizerBox = document.getElementById('visualizer-box');
+            const consoleBox = document.getElementById('console-box');
+            
+            const itemInput = document.getElementById('item-input');
+            const priorityInput = document.getElementById('priority-input');
+            const newCapacityInput = document.getElementById('new-capacity-input');
+            
+            const btnEnqueue = document.getElementById('btn-enqueue');
+            const btnDequeue = document.getElementById('btn-dequeue');
+            const btnSetCapacity = document.getElementById('btn-set-capacity');
+            const btnBack = document.getElementById('btn-back');
+
+            // --- Funciones de Log y Renderizado ---
+
+            function logMessage(message, type = 'op') {
+                const entry = document.createElement('div');
+                entry.className = 'log-entry';
+                
+                const timestamp = new Date().toLocaleTimeString();
+                
+                if (type === 'error') {
+                    entry.classList.add('log-error');
+                    entry.innerHTML = `[${timestamp}] > ¡ALERTA! ${message}`;
+                } else if (type === 'success') {
+                    entry.classList.add('log-success');
+                    entry.innerHTML = `[${timestamp}] > ${message}`;
+                } else {
+                    entry.classList.add('log-op');
+                    entry.innerHTML = `[${timestamp}] > ${message}`;
+                }
+                consoleBox.appendChild(entry);
+                consoleBox.scrollTop = consoleBox.scrollHeight;
+            }
+
+            function clearLog() {
+                consoleBox.innerHTML = '';
+            }
+
+            function renderQueue() {
+                if (!currentQueue) return;
+
+                const state = currentQueue.getVisualState();
+                
+                if (state.rawHTML) {
+                    visualizerBox.innerHTML = state.rawHTML;
+                    return;
+                }
+
+                let viz = "|";
+                let ptr = " ";
+                
+                for (let i = 0; i < state.capacity; i++) {
+                    const item = state.queue[i];
+                    
+                    if (item === null) {
+                        viz += ' <span class="empty">·</span> ';
+                    } else {
+                        viz += ` <span class="item">${item}</span> `;
+                    }
+                    
+                    let f_ptr = (i === state.front) ? 'F' : ' ';
+                    let r_ptr = (i === state.rear) ? 'R' : ' ';
+                    
+                    if (f_ptr !== ' ' && r_ptr !== ' ' && state.size > 0) {
+                        ptr += '<span class="ptr">F/R</span> ';
+                    } else if (f_ptr !== ' ' && (state.type !== 'Cola Simple (Lineal)' || state.size > 0)) {
+                        ptr += '<span class="ptr"> ^F </span>';
+                    } else if (r_ptr !== ' ') {
+                        ptr += '<span class="ptr"> ^R </span>';
+                    } else {
+                        ptr += '    ';
+                    }
+                }
+                viz += "|";
+                
+                const info = `  Estado: ${state.size}/${state.capacity} | Front: ${state.front} | Rear: ${state.rear}`;
+                visualizerBox.innerHTML = `${viz}\n${ptr}\n\n${info}`;
+            }
+
+            function switchScreen(to) {
+                if (to === 'simulator') {
+                    menuScreen.style.display = 'none';
+                    simScreen.style.display = 'block';
+                } else {
+                    menuScreen.style.display = 'block';
+                    simScreen.style.display = 'none';
+                    currentQueue = null;
+                }
+            }
+
+            function startSimulator(queueType) {
+                const capacity = parseInt(capacityInput.value, 10);
+                if (isNaN(capacity) || capacity <= 0) {
+                    alert("Por favor ingrese una capacidad válida (número > 0).");
+                    return;
+                }
+                
+                priorityInput.style.display = 'none';
+
+                if (queueType === 'simple') {
+                    currentQueue = new SimpleLinearQueue(capacity);
+                } else if (queueType === 'circular') {
+                    currentQueue = new CircularQueue(capacity);
+                } else if (queueType === 'priority') {
+                    currentQueue = new PriorityQueue(capacity);
+                    priorityInput.style.display = 'block';
+                }
+                
+                simTitle.textContent = `> SIMULADOR: [${currentQueue.type}]`;
+                clearLog();
+                logMessage(`Sistema inicializado. Tipo: ${currentQueue.type}, Cap: ${capacity}`, 'success');
+                renderQueue();
+                switchScreen('simulator');
+            }
+
+            // --- Event Listeners ---
+
+            startSimpleBtn.addEventListener('click', () => startSimulator('simple'));
+            startCircularBtn.addEventListener('click', () => startSimulator('circular'));
+            startPriorityBtn.addEventListener('click', () => startSimulator('priority'));
+            
+            btnBack.addEventListener('click', () => switchScreen('menu'));
+
+            btnEnqueue.addEventListener('click', () => {
+                const item = itemInput.value;
+                if (!item) {
+                    logMessage("Debe ingresar un item.", 'error');
+                    return;
+                }
+                
+                try {
+                    if (currentQueue.type === "Cola de Prioridad") {
+                        const priority = parseInt(priorityInput.value, 10);
+                        if (isNaN(priority)) {
+                             logMessage("Prioridad debe ser un número.", 'error');
+                             return;
+                        }
+                        currentQueue.enqueue(item, priority);
+                        logMessage(`ENCOLAR: '${item}' (Prioridad: ${priority})`);
+                    } else {
+                        currentQueue.enqueue(item);
+                        logMessage(`ENCOLAR: '${item}'`);
+                    }
+                    itemInput.value = '';
+                    priorityInput.value = '';
+                } catch (e) {
+                    logMessage(e.message, 'error'); // Captura Overflow
+                }
+                renderQueue();
+            });
+            
+            btnDequeue.addEventListener('click', () => {
+                try {
+                    let item;
+                    if (currentQueue.type === "Cola de Prioridad") {
+                        const dequeued = currentQueue.dequeue();
+                        item = `'${dequeued.item}' (Prio: ${dequeued.priority})`;
+                    } else {
+                        item = `'${currentQueue.dequeue()}'`;
+                    }
+                    logMessage(`DESENCOLAR: ${item}`);
+                } catch (e) {
+                    logMessage(e.message, 'error'); // Captura Underflow
+                }
+                renderQueue();
+            });
+
+            btnSetCapacity.addEventListener('click', () => {
+                const newCapacity = parseInt(newCapacityInput.value, 10);
+                if (isNaN(newCapacity) || newCapacity <= 0) {
+                    logMessage("Debe ingresar un nuevo límite válido (> 0).", 'error');
+                    return;
+                }
+                
+                try {
+                    currentQueue.setCapacity(newCapacity);
+                    logMessage(`LÍMITE CAMBIADO: Nueva capacidad = ${newCapacity}`, 'success');
+                    newCapacityInput.value = '';
+                } catch (e) {
+                    logMessage(e.message, 'error');
+                }
+                renderQueue();
+            });
+
+        });
+    </script>
+</body>
+</html>
