@@ -1,0 +1,2 @@
+# Este archivo le indica a Render que use el entorno de Python.
+# Déjalo vacío si no usas librerías externas.
